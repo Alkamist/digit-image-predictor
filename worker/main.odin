@@ -3,6 +3,7 @@ package main
 import "core:c"
 import "core:os"
 import "core:log"
+import "core:sys/posix"
 import "core:time"
 import "core:slice"
 import "core:strings"
@@ -15,6 +16,8 @@ import "ml/mlp"
 
 CHANNEL_ID         :: 1
 REQUEST_QUEUE_NAME :: "mnist_requests"
+
+should_exit: bool
 
 Prediction_Request :: struct {
 	image: [MNIST_IMAGE_SIZE]f32,
@@ -71,7 +74,13 @@ try_connect :: proc(user, pass, host, port: string) -> (connection: amqp.connect
 main :: proc() {
 	defer log.info("Consumer shutting down")
 
-	context.logger = log.create_console_logger()
+	logger := log.create_console_logger()
+	defer log.destroy_console_logger(logger)
+	context.logger = logger
+
+	posix.signal(.SIGTERM, proc "c" (_: posix.Signal) {
+		should_exit = true
+	})
 
 	user := os.lookup_env("RABBITMQ_USER") or_else "guest"
 	pass := os.lookup_env("RABBITMQ_PASS") or_else "guest"
@@ -135,10 +144,16 @@ main :: proc() {
 			log.error("Error consuming message")
 			break
 		}
+
+		if should_exit {
+			break
+		}
 	}
 
 	amqp.channel_close(connection, CHANNEL_ID, amqp.REPLY_SUCCESS)
 	amqp.connection_close(connection, amqp.REPLY_SUCCESS)
+
+	log.info("Done")
 }
 
 handle_request :: proc(connection: amqp.connection_state_t, envelope: ^amqp.envelope_t) {

@@ -19,7 +19,7 @@ server:
       cpu: "100m"
 
 worker:
-  image: alkamist1/digit-image-predictor:worker-0.1.1
+  image: alkamist1/digit-image-predictor:worker-0.1.2
   replicaCount: 1
   resources:
     limits:
